@@ -1,166 +1,181 @@
 import random
 from simanneal import Annealer
 
-# --- Dados do Exercício (Baseado nas páginas 29-30 do PDF) ---
-#
-artistas = [
-    "Taylor Swift", "Beyoncé", "Tardezinha c/ Thiaguinho", "Jorge & Mateus",
-    "Anitta", "Luísa Sonza", "Billie Eilish", "Avenged Sevenfold",
-    "Nando Reis", "Gilberto Gil", "Zeca Pagodinho", "Joelma",
-    "Numanice (Ludmila)", "Adele", "Paramore", "The Weeknd"
+# --------------------------------------------------------------------------
+# 1. DEFINIÇÃO DO PROBLEMA (Dados do Exercício 1)
+# --------------------------------------------------------------------------
+
+# Dados extraídos da tabela na página 29 do PDF [cite: 704]
+shows = [
+    {"nome": "Taylor Swift", "preco": 1200, "gosto": 9.5},
+    {"nome": "Beyoncé", "preco": 1100, "gosto": 9.5},
+    {"nome": "Tardezinha c/ Thiaguinho", "preco": 300, "gosto": 7.0},
+    {"nome": "Jorge & Mateus", "preco": 250, "gosto": 6.0},
+    {"nome": "Anitta", "preco": 350, "gosto": 6.0},
+    {"nome": "Luísa Sonza", "preco": 280, "gosto": 6.5},
+    {"nome": "Billie Eilish", "preco": 700, "gosto": 7.5},
+    {"nome": "Avenged Sevenfold", "preco": 1000, "gosto": 6.5},
+    {"nome": "Nando Reis", "preco": 200, "gosto": 7.5},
+    {"nome": "Gilberto Gil", "preco": 220, "gosto": 7.5},
+    {"nome": "Zeca Pagodinho", "preco": 240, "gosto": 7.0},
+    {"nome": "Joelma", "preco": 180, "gosto": 5.5},
+    {"nome": "Numanice (Ludmila)", "preco": 200, "gosto": 5.0},
+    {"nome": "Adele", "preco": 800, "gosto": 8.0},
+    {"nome": "Paramore", "preco": 800, "gosto": 8.5},
+    {"nome": "The Weeknd", "preco": 950, "gosto": 8.5},
 ]
 
-# Preços (R$) - Baseado na tabela da pág. 29
-precos = [
-    1200, 1100, 300, 250, 350, 280, 800, 1000, # Nota: PDF tem dados inconsistentes. Usando tabela.
-    200, 220, 240, 180, 200, 800, 800, 950 # Nota: PDF tem dados inconsistentes. Usando tabela.
-]
+# Orçamento máximo de Maria [cite: 708]
+BUDGET_MAX = 3000.0
 
-# Gosto Pessoal (Vi) - Baseado na tabela da pág. 29
-gostos = [
-    9.5, 9.5, 7.0, 6.0, 6.0, 6.5, 7.5, 6.5, 
-    7.5, 7.5, 7.0, 5.5, 5.0, 8.0, 8.5, 8.5
-]
+# --------------------------------------------------------------------------
+# 2. CLASSE DA METAHEURÍSTICA (RECOZIMENTO SIMULADO)
+# --------------------------------------------------------------------------
 
-# IDs dos artistas para a restrição da alternativa (a)
-ID_TAYLOR = 0
-ID_BEYONCE = 1
-ORCAMENTO_MAXIMO = 3000.0
-
-
-class ShowProblem(Annealer):
+class ShowAnnealer(Annealer):
     """
-    Resolve o problema da Maria usando Recozimento Simulado.
-    O 'estado' é uma tupla de IDs dos shows que ela decidiu ir.
+    Implementação do Recozimento Simulado para o problema dos shows.
+    O "estado" (self.state) é uma lista de índices dos shows que Maria irá.
     """
-    
-    def __init__(self, initial_state, must_have_show_id=None):
-        self.must_have_show_id = must_have_show_id
-        super(ShowProblem, self).__init__(initial_state)
+    def __init__(self, state):
+        super(ShowAnnealer, self).__init__(state) # Inicia o Annealer com o estado
 
     def move(self):
-        """Gera um novo estado vizinho."""
-        # Escolhe aleatoriamente um show para adicionar ou remover
-        show_id = random.randint(0, len(artistas) - 1)
+        """
+        Gera uma solução "vizinha" modificando levemente a atual.
+        Tenta adicionar, remover ou trocar um show aleatoriamente.
+        """
+        # Escolhe uma ação: 0=remover, 1=adicionar, 2=trocar
+        acao = random.randint(0, 2)
         
-        # Faz cópia do estado para não modificar o original
-        novo_estado = list(self.state)
-
-        if show_id in novo_estado:
-            # Se a restrição (a) estiver ativa, não permite remover o show obrigatório
-            if show_id == self.must_have_show_id:
-                return # Não faz nada
-            novo_estado.remove(show_id)
-        else:
-            novo_estado.append(show_id)
+        # Ação 0: Tenta remover um show (se a lista não estiver vazia)
+        if acao == 0 and len(self.state) > 0:
+            idx_remover = random.choice(self.state)
+            self.state.remove(idx_remover)
             
-        self.state = tuple(sorted(novo_estado)) # Estados devem ser "hashable" (imutáveis)
+        # Ação 1: Tenta adicionar um show
+        elif acao == 1:
+            # Lista de shows que *não* estão no estado atual
+            shows_disponiveis = [i for i in range(len(shows)) if i not in self.state]
+            if shows_disponiveis:
+                idx_adicionar = random.choice(shows_disponiveis)
+                self.state.append(idx_adicionar)
+                
+        # Ação 2: Tenta trocar um show (remove um, adiciona outro)
+        else:
+            # Tenta remover
+            if len(self.state) > 0:
+                idx_remover = random.choice(self.state)
+                self.state.remove(idx_remover)
+            # Tenta adicionar
+            shows_disponiveis = [i for i in range(len(shows)) if i not in self.state]
+            if shows_disponiveis:
+                idx_adicionar = random.choice(shows_disponiveis)
+                self.state.append(idx_adicionar)
 
     def energy(self):
-        """Calcula a "energia" do estado (o que queremos minimizar)."""
-        total_custo = 0
+        """
+        Calcula a "energia" (custo) da solução.
+        Queremos MAXIMIZAR o "gosto", mas o SA MINIMIZA a energia.
+        Portanto, nossa energia será o 'gosto total negativo'.
+        """
+        total_preco = 0
         total_gosto = 0
-        num_shows = len(self.state)
-
-        # 1. Verificar restrição (a)
-        if self.must_have_show_id is not None and self.must_have_show_id not in self.state:
-            # Penalidade muito alta se o show obrigatório não estiver incluído
-            return 1_000_000 
-
-        # 2. Calcular custo e gosto
-        for show_id in self.state:
-            total_custo += precos[show_id]
-            total_gosto += gostos[show_id]
-
-        # 3. Verificar restrição de orçamento
-        if total_custo > ORCAMENTO_MAXIMO:
-            # Penalidade alta, proporcional ao quanto estourou o orçamento
-            # Isso guia o algoritmo de volta para soluções válidas
-            return (total_custo - ORCAMENTO_MAXIMO) * 1000
-
-        # 4. Calcular o objetivo
-        # Queremos MAXIMIZAR o número de shows e o gosto pessoal.
-        # "ela quer ir no máximo de shows... considerando seu gosto"
-        # Isso sugere que N° de Shows é prioridade.
         
-        objetivo = (num_shows * 100) + total_gosto
+        for idx in self.state:
+            total_preco += shows[idx]["preco"]
+            total_gosto += shows[idx]["gosto"]
+            
+        # Penalidade: Se estourar o orçamento, a solução é inválida
+        # Damos uma "energia" (custo) muito alta para que o SA a descarte.
+        if total_preco > BUDGET_MAX:
+            # Retorna 1.0 (muito alto, já que queremos valores negativos)
+            return 1.0 
         
-        # Como o Annealer MINIMIZA, nós minimizamos o NEGATIVO do nosso objetivo.
-        return -objetivo 
+        # Se for válida, retorna o negativo do gosto total
+        # (pois o SA minimiza, e queremos maximizar o gosto)
+        return -total_gosto
 
+# --------------------------------------------------------------------------
+# 3. FUNÇÃO AUXILIAR PARA IMPRIMIR A SOLUÇÃO
+# --------------------------------------------------------------------------
 
-def print_solution(state, energy):
-    """Função auxiliar para imprimir os resultados."""
-    print(f"\nEnergia (Objetivo Negativo): {energy:.2f}")
+def print_solution(solution_state, title=""):
+    """Imprime os resultados de forma legível."""
+    print(f"\n--- {title} ---")
     
-    total_custo = sum(precos[i] for i in state)
-    total_gosto = sum(gostos[i] for i in state)
-    num_shows = len(state)
+    total_gosto = 0
+    total_preco = 0
+    shows_selecionados = []
     
-    print(f"Resultado: {num_shows} shows, Gosto total: {total_gosto:.1f}, Custo total: R$ {total_custo:.2f}")
-    print("Shows selecionados:")
-    for i in state:
-        print(f"  - {artistas[i]} (Custo: R${precos[i]}, Gosto: {gostos[i]})")
+    for idx in solution_state:
+        show = shows[idx]
+        shows_selecionados.append(show["nome"])
+        total_gosto += show["gosto"]
+        total_preco += show["preco"]
+        
+    print(f"Shows selecionados ({len(shows_selecionados)}):")
+    for nome in sorted(shows_selecionados):
+        print(f"  - {nome}")
+        
+    print(f"\nTotal Gosto: {total_gosto:.2f}")
+    print(f"Total Preço: R$ {total_preco:.2f} (Orçamento: R$ {BUDGET_MAX:.2f})")
 
+# --------------------------------------------------------------------------
+# 4. EXECUTANDO AS SIMULAÇÕES
+# --------------------------------------------------------------------------
 
-# --- Solução Principal ---
-print("="*40)
-print("Solução Principal (Exercício 1)")
-print("="*40)
-# Estado inicial: nenhum show
-initial_state = []
-sa = ShowProblem(tuple(initial_state))
-best_state, best_energy = sa.auto(minutes=0.1)
-print_solution(best_state, best_energy)
+if __name__ == "__main__":
+    
+    # --- Exercício 1 (Principal) ---
+    # "Quais shows ela deve ir considerando seu gosto pessoal e que ela quer ir 
+    #  no máximo de shows que for possível?" [cite: 710, 712]
+    # (Nossa função de energia já balanceia isso ao maximizar o gosto)
+    
+    # Começa com uma solução vazia
+    initial_state = []
+    annealer = ShowAnnealer(initial_state)
+    
+    # Executa o Recozimento Simulado
+    # Tmax = Temperatura inicial (alta, aceita piores soluções) [cite: 543]
+    # Tmin = Temperatura final (baixa, "congela" na melhor solução)
+    # steps = Número de iterações
+    best_state, best_energy = annealer.anneal(Tmax=25000, Tmin=2.5, steps=50000)
+    
+    print_solution(best_state, "Exercício 1: Solução Principal (Max Gosto)")
 
+    # --- Exercício 1.a (Com Restrição) ---
+    # "Qual o resultado se Maria não abrisse mão de ir ao menos 
+    #  no show da Taylor Swift ou Beyonce?" 
+    
+    # Criamos uma nova classe que HERDA da original e modifica a energia
+    class ShowAnnealerConstrained(ShowAnnealer):
+        def energy(self):
+            # ID da Taylor Swift é 0, Beyoncé é 1
+            taylor_presente = (0 in self.state)
+            beyonce_presente = (1 in self.state)
+            
+            # Se NENHUMA das duas estiver, aplica a penalidade máxima
+            if not taylor_presente and not beyonce_presente:
+                return 1.0 # Solução inválida
+            
+            # Se ao menos uma estiver, calcula a energia normalmente
+            return super().energy()
 
-# --- Solução Alternativa (a) ---
-print("\n" + "="*40)
-print("Solução (a): Obrigada a ir na Taylor Swift OU Beyoncé") 
-print("="*40)
+    initial_state_a = [] # Começa do zero
+    annealer_a = ShowAnnealerConstrained(initial_state_a)
+    best_state_a, best_energy_a = annealer_a.anneal(Tmax=25000, Tmin=2.5, steps=50000)
+    
+    print_solution(best_state_a, "Exercício 1.a: Com Restrição (Taylor ou Beyoncé)")
 
-# Cenário 1: Obrigada a ir na Taylor Swift (ID 0)
-print("--- Cenário A1: Com Taylor Swift ---")
-initial_state_ts = [ID_TAYLOR]
-sa_ts = ShowProblem(tuple(initial_state_ts), must_have_show_id=ID_TAYLOR)
-best_state_ts, best_energy_ts = sa_ts.auto(minutes=0.1)
-print_solution(best_state_ts, best_energy_ts)
-
-# Cenário 2: Obrigada a ir na Beyoncé (ID 1)
-print("\n--- Cenário A2: Com Beyoncé ---")
-initial_state_b = [ID_BEYONCE]
-sa_b = ShowProblem(tuple(initial_state_b), must_have_show_id=ID_BEYONCE)
-best_state_b, best_energy_b = sa_b.auto(minutes=0.1)
-print_solution(best_state_b, best_energy_b)
-
-print("\n--- Conclusão (a) ---")
-if best_energy_ts < best_energy_b:
-    print("A melhor opção (maior objetivo) é forçar a ida ao show da Taylor Swift.")
-else:
-    print("A melhor opção (maior objetivo) é forçar a ida ao show da Beyoncé.")
-
-
-# --- Solução Alternativa (b) ---
-print("\n" + "="*40)
-print("Solução (b): Mudando parâmetros do modelo") 
-print("="*40)
-print("Vamos rodar a solução principal novamente, mas com mais 'steps' (passos)")
-
-initial_state = []
-sa_b = ShowProblem(tuple(initial_state))
-
-sa_b.Tmax = 25000.0  # Temperatura inicial mais alta
-sa_b.Tmin = 1.0      # Temperatura final mais baixa
-sa_b.steps = 500000  # Muito mais passos de exploração
-sa_b.updates = 100
-
-best_state_b2, best_energy_b2 = sa_b.run()
-print_solution(best_state_b2, best_energy_b2)
-
-print(f"\nComparação (b):")
-print(f"  Energia com auto(): {best_energy:.2f}")
-print(f"  Energia com +steps: {best_energy_b2:.2f}")
-if best_energy_b2 < best_energy:
-    print("Resultado: Mudar os parâmetros encontrou uma solução melhor!")
-else:
-print("Resultado: Mudar os parâmetros não melhorou a solução (ou achou a mesma).")
+    # --- Exercício 1.b (Mudando Parâmetros) ---
+    # "Mude alguns parametros do modelo escolhido e verifique se há mudanças" 
+    # Vamos rodar com MUITO menos 'steps' (passos), simulando uma busca de baixa qualidade.
+    
+    initial_state_b = []
+    annealer_b = ShowAnnealer(initial_state_b) # Usando a classe original
+    
+    # Rodando com apenas 1000 passos (pode não achar a solução ótima)
+    best_state_b, best_energy_b = annealer_b.anneal(Tmax=25000, Tmin=2.5, steps=1000)
+    
+    print_solution(best_state_b, "Exercício 1.b: Parâmetros Alterados (steps=1000)")
